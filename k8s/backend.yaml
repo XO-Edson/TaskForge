@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: backend
+
+  template:
+    metadata:
+      labels:
+        app: backend
+
+    spec:
+      containers:
+        - name: backend
+          image: taskforge-backend:latest
+          imagePullPolicy : IfNotPresent
+
+          ports:
+            - containerPort: 4000
+
+          readinessProbe:
+           httpGet:
+            path: /api/health
+            port: 4000
+           initialDelaySeconds: 5
+           periodSeconds: 10
+        
+          env:
+            - name: PORT
+              valueFrom:
+               configMapKeyRef:
+                name: backend-config
+                key: PORT
+
+            - name: DB_HOST
+              valueFrom:
+               configMapKeyRef:
+                name: backend-config
+                key: DB_HOST
+
+            - name: DB_PORT
+              valueFrom:
+               configMapKeyRef:
+                name: backend-config
+                key: DB_PORT
+
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_DB
+
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_USER
+
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+spec:
+  selector:
+    app: backend
+
+  ports:
+    - port: 4000
+      targetPort: 4000
+
+  type: ClusterIP

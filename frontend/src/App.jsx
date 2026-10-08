@@ -4,7 +4,7 @@ import {
   Clock3, Filter, Layers3, Plus, Search, Server, Trash2, X, Zap
 } from "lucide-react";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+const API = "/api";
 
 const priorityMeta = {
   high: { label: "High", className: "priority-high" },

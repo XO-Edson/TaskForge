@@ -14,6 +14,10 @@ const pool = new Pool({
   password: process.env.POSTGRES_PASSWORD,
 });
 
+pool.on("error", (err) => {
+  console.error("Unexpected PostgreSQL pool error:", err);
+});
+
 app.get("/api/health", async (_req, res) => {
   try {
     await pool.query("SELECT 1");
