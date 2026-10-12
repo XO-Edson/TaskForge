@@ -38,7 +38,7 @@ resource "aws_subnet" "public_a" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "taskforge-public-a"
+    Name                     = "taskforge-public-a"
     "kubernetes.io/role/elb" = "1"
   }
 }
@@ -50,7 +50,7 @@ resource "aws_subnet" "public_b" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "taskforge-public-b"
+    Name                     = "taskforge-public-b"
     "kubernetes.io/role/elb" = "1"
   }
 }
@@ -62,7 +62,7 @@ resource "aws_subnet" "private_a" {
   availability_zone = data.aws_availability_zones.available.names[0]
 
   tags = {
-    Name = "taskforge-private-a"
+    Name                              = "taskforge-private-a"
     "kubernetes.io/role/internal-elb" = "1"
   }
 }
@@ -73,7 +73,7 @@ resource "aws_subnet" "private_b" {
   availability_zone = data.aws_availability_zones.available.names[1]
 
   tags = {
-    Name = "taskforge-private-b"
+    Name                              = "taskforge-private-b"
     "kubernetes.io/role/internal-elb" = "1"
   }
 }
@@ -116,7 +116,7 @@ resource "aws_route_table" "private" {
 resource "aws_route" "private_nat" {
   route_table_id         = aws_route_table.private.id
   destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.taskforge.id
+  nat_gateway_id         = aws_nat_gateway.taskforge_nat.id
 }
 
 # Associate Route Table with Private Subnet
@@ -255,7 +255,7 @@ resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
 resource "aws_eks_cluster" "taskforge" {
   name     = "taskforge"
   role_arn = aws_iam_role.eks_cluster.arn
-  version  = "1.36"
+  version  = "1.37"
 
   vpc_config {
     subnet_ids = [
@@ -315,9 +315,9 @@ resource "aws_iam_role_policy_attachment" "eks_ecr_pull" {
 
 # Create the EKS Node Group
 resource "aws_eks_node_group" "taskforge" {
-  cluster_name = aws_eks_cluster.taskforge.name
+  cluster_name    = aws_eks_cluster.taskforge.name
   node_group_name = "taskforge-workers"
-  node_role_arn = aws_iam_role.eks_nodes.arn
+  node_role_arn   = aws_iam_role.eks_nodes.arn
 
   subnet_ids = [
     aws_subnet.private_a.id,
@@ -340,4 +340,55 @@ resource "aws_eks_node_group" "taskforge" {
   tags = {
     Name = "taskforge-worker"
   }
+}
+
+resource "aws_eks_addon" "pod_identity_agent" {
+  cluster_name = aws_eks_cluster.taskforge.name
+  addon_name   = "eks-pod-identity-agent"
+}
+
+resource "aws_iam_role" "vpc_cni" {
+  name = "taskforge-vpc-cni-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Principal = {
+          Service = "pods.eks.amazonaws.com"
+        }
+
+        Action = [
+          "sts:AssumeRole",
+          "sts:TagSession"
+        ]
+      }
+    ]
+  })
+
+  tags = {
+    Name = "taskforge-vpc-cni-role"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "vpc_cni" {
+  role       = aws_iam_role.vpc_cni.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+}
+
+
+resource "aws_eks_addon" "vpc_cni" {
+  cluster_name = aws_eks_cluster.taskforge.name
+  addon_name   = "vpc-cni"
+
+  resolve_conflicts_on_create = "OVERWRITE"
+
+  pod_identity_association {
+    service_account = "aws-node"
+    role_arn        = aws_iam_role.vpc_cni.arn
+  }
+
 }
