@@ -11,6 +11,37 @@ provider "aws" {
   region = "eu-central-1"
 }
 
+
+# Frontend container image repository
+resource "aws_ecr_repository" "frontend" {
+  name                 = "taskforge-frontend"
+  image_tag_mutability = "IMMUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = {
+    Name = "taskforge-frontend"
+    App  = "TaskForge"
+  }
+}
+
+# Backend container image repository
+resource "aws_ecr_repository" "backend" {
+  name                 = "taskforge-backend"
+  image_tag_mutability = "IMMUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = {
+    Name = "taskforge-backend"
+    App  = "TaskForge"
+  }
+}
+
 resource "aws_vpc" "taskforge_vpc" {
   cidr_block = "10.0.0.0/16"
 }
