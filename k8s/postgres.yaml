@@ -32,15 +32,15 @@ spec:
             - containerPort: 5432
 
           readinessProbe:
-           exec:
-            command:
-             - pg_isready
-             - -U
-             - taskforge_user
-             - -d
-             - taskforge
-           initialDelaySeconds: 5
-           periodSeconds: 10
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - taskforge_user
+                - -d
+                - taskforge
+            initialDelaySeconds: 5
+            periodSeconds: 10
 
           env:
             - name: POSTGRES_DB
@@ -67,6 +67,8 @@ spec:
           
             - name: postgres-storage
               mountPath: /var/lib/postgresql/data
+              subPath: postgres
+
       volumes:
         - name: init-script
           configMap:

@@ -423,3 +423,112 @@ resource "aws_eks_addon" "vpc_cni" {
   }
 
 }
+
+
+# IAM role for the EBS CSI driver
+resource "aws_iam_role" "ebs_csi" {
+  name = "taskforge-ebs-csi-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Principal = {
+          Service = "pods.eks.amazonaws.com"
+        }
+
+        Action = [
+          "sts:AssumeRole",
+          "sts:TagSession"
+        ]
+      }
+    ]
+  })
+
+  tags = {
+    Name = "taskforge-ebs-csi-role"
+    App  = "TaskForge"
+  }
+}
+
+# Permissions required to manage EBS volumes
+resource "aws_iam_role_policy_attachment" "ebs_csi" {
+  role       = aws_iam_role.ebs_csi.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+}
+
+# Install the EBS CSI driver and associate its service account with the IAM role
+resource "aws_eks_addon" "ebs_csi" {
+  cluster_name = aws_eks_cluster.taskforge.name
+  addon_name   = "aws-ebs-csi-driver"
+
+  pod_identity_association {
+    service_account = "ebs-csi-controller-sa"
+    role_arn        = aws_iam_role.ebs_csi.arn
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.ebs_csi,
+    aws_eks_addon.pod_identity_agent
+  ]
+}
+
+
+# IAM permissions required by the AWS Load Balancer Controller
+resource "aws_iam_policy" "load_balancer_controller" {
+  name        = "taskforge-load-balancer-controller"
+  description = "Permissions for the TaskForge AWS Load Balancer Controller"
+
+  policy = file("${path.module}/aws-load-balancer-controller-policy.json")
+}
+
+# Dedicated IAM role assumed through EKS Pod Identity
+resource "aws_iam_role" "load_balancer_controller" {
+  name = "taskforge-load-balancer-controller"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "pods.eks.amazonaws.com"
+      }
+      Action = [
+        "sts:AssumeRole",
+        "sts:TagSession"
+      ]
+      Condition = {
+        StringEquals = {
+          "aws:SourceAccount"                         = "173291122749"
+          "aws:RequestTag/kubernetes-namespace"       = "kube-system"
+          "aws:RequestTag/kubernetes-service-account" = "aws-load-balancer-controller"
+        }
+      }
+    }]
+  })
+
+  tags = {
+    Name = "taskforge-load-balancer-controller"
+    App  = "TaskForge"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "load_balancer_controller" {
+  role       = aws_iam_role.load_balancer_controller.name
+  policy_arn = aws_iam_policy.load_balancer_controller.arn
+}
+
+# Give the controller's Kubernetes service account this IAM role
+resource "aws_eks_pod_identity_association" "load_balancer_controller" {
+  cluster_name    = aws_eks_cluster.taskforge.name
+  namespace       = "kube-system"
+  service_account = "aws-load-balancer-controller"
+  role_arn        = aws_iam_role.load_balancer_controller.arn
+
+  depends_on = [
+    aws_iam_role_policy_attachment.load_balancer_controller
+  ]
+}

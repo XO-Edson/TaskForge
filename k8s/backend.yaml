@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: taskforge-backend:latest
+          image: 173291122749.dkr.ecr.eu-central-1.amazonaws.com/taskforge-backend:v1
           imagePullPolicy : IfNotPresent
 
           ports:
