@@ -38,6 +38,43 @@ pipeline {
             }
         }
 
+        
+    stage('Verify AWS Credentials') {
+        steps {
+            withCredentials([
+                usernamePassword(
+                    credentialsId: 'aws-ecr-credentials',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )
+            ]) {
+                sh '''
+                    set -eu
+
+                    echo "=== Verify AWS identity ==="
+                    docker run --rm \
+                        -e AWS_ACCESS_KEY_ID \
+                        -e AWS_SECRET_ACCESS_KEY \
+                        -e AWS_DEFAULT_REGION=eu-central-1 \
+                        amazon/aws-cli:latest \
+                        sts get-caller-identity
+
+                    echo "=== Verify ECR authentication permission ==="
+                    docker run --rm \
+                        -e AWS_ACCESS_KEY_ID \
+                        -e AWS_SECRET_ACCESS_KEY \
+                        -e AWS_DEFAULT_REGION=eu-central-1 \
+                        amazon/aws-cli:latest \
+                        ecr get-login-password \
+                        --region eu-central-1 > /dev/null
+
+                    echo "AWS credentials and ECR authentication verified."
+                '''
+            }
+        }
+    }
+
+
         stage('Build Frontend') {
             steps {
                 retry(2) {
