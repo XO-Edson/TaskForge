@@ -217,6 +217,74 @@ pipeline {
                 }
             }
         }
+
+        
+        stage('Push Images to ECR') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'aws-ecr-credentials',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
+                ]) {
+                    sh '''
+                        set -eu
+
+                        AWS_REGION="eu-central-1"
+                        AWS_ACCOUNT_ID="173291122749"
+                        ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+                        # Unique tag: commit SHA + Jenkins build number
+                        COMMIT_SHA=$(git rev-parse --short=12 HEAD)
+                        REMOTE_TAG="${COMMIT_SHA}-${BUILD_NUMBER}"
+
+                        FRONTEND_LOCAL="taskforge-frontend:${COMMIT_SHA}"
+                        BACKEND_LOCAL="taskforge-backend:${COMMIT_SHA}"
+
+                        echo "=== Confirm local images exist ==="
+                        docker image inspect "$FRONTEND_LOCAL" >/dev/null
+                        docker image inspect "$BACKEND_LOCAL" >/dev/null
+
+                        echo "=== Authenticate to Amazon ECR ==="
+                        ECR_PASSWORD=$(docker run --rm \
+                            -e AWS_ACCESS_KEY_ID \
+                            -e AWS_SECRET_ACCESS_KEY \
+                            -e AWS_DEFAULT_REGION="$AWS_REGION" \
+                            amazon/aws-cli:latest \
+                            ecr get-login-password --region "$AWS_REGION")
+
+                        printf '%s' "$ECR_PASSWORD" | docker login \
+                            --username AWS \
+                            --password-stdin "$ECR_REGISTRY"
+
+                        unset ECR_PASSWORD
+
+                        echo "=== Tag images for ECR ==="
+                        docker tag "$FRONTEND_LOCAL" \
+                            "$ECR_REGISTRY/taskforge-frontend:${REMOTE_TAG}"
+
+                        docker tag "$BACKEND_LOCAL" \
+                            "$ECR_REGISTRY/taskforge-backend:${REMOTE_TAG}"
+
+                        echo "=== Push frontend image ==="
+                        docker push \
+                            "$ECR_REGISTRY/taskforge-frontend:${REMOTE_TAG}"
+
+                        echo "=== Push backend image ==="
+                        docker push \
+                            "$ECR_REGISTRY/taskforge-backend:${REMOTE_TAG}"
+
+                        echo "=== Images successfully pushed ==="
+                        echo "Frontend: $ECR_REGISTRY/taskforge-frontend:${REMOTE_TAG}"
+                        echo "Backend:  $ECR_REGISTRY/taskforge-backend:${REMOTE_TAG}"
+
+                        docker logout "$ECR_REGISTRY"
+                    '''
+                }
+            }
+        }
+
     }
 
     post {
