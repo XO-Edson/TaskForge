@@ -1,7 +1,6 @@
 FROM node:22-alpine
 
-RUN apk update && apk upgrade --no-cache \
-    && npm install --global npm@12.2.1
+RUN apk update && apk upgrade --no-cache
 
 WORKDIR /app
 
@@ -10,6 +9,11 @@ RUN npm ci --omit=dev
 
 COPY src ./src
 
+RUN rm -rf /usr/local/lib/node_modules/npm \
+    /usr/local/bin/npm \
+    /usr/local/bin/npx
+
 EXPOSE 4000
 
-CMD ["npm", "start"]
+CMD ["node", "src/server.js"]
+
