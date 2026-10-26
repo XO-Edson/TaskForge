@@ -532,3 +532,77 @@ resource "aws_eks_pod_identity_association" "load_balancer_controller" {
     aws_iam_role_policy_attachment.load_balancer_controller
   ]
 }
+
+
+# IAM identity used by the locally running Jenkins agent
+resource "aws_iam_user" "jenkins_ecr" {
+  name = "taskforge-jenkins-ecr"
+
+  tags = {
+    App     = "TaskForge"
+    Purpose = "Jenkins ECR image publishing"
+  }
+}
+
+# Allow authentication to ECR and pushing to TaskForge repositories only
+resource "aws_iam_policy" "jenkins_ecr_push" {
+  name        = "TaskForgeJenkinsECRPushPolicy"
+  description = "Allow Jenkins to push TaskForge images to ECR"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ECRAuthorization"
+        Effect   = "Allow"
+        Action   = ["ecr:GetAuthorizationToken"]
+        Resource = "*"
+      },
+      {
+        Sid    = "PushTaskForgeImages"
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:InitiateLayerUpload",
+          "ecr:UploadLayerPart",
+          "ecr:CompleteLayerUpload",
+          "ecr:PutImage"
+        ]
+        Resource = [
+          aws_ecr_repository.frontend.arn,
+          aws_ecr_repository.backend.arn
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_user_policy_attachment" "jenkins_ecr_push" {
+  user       = aws_iam_user.jenkins_ecr.name
+  policy_arn = aws_iam_policy.jenkins_ecr_push.arn
+}
+
+
+# Allow Jenkins to retrieve connection details for the existing EKS cluster.
+resource "aws_iam_policy" "jenkins_eks_describe" {
+  name        = "TaskForgeJenkinsEKSDescribePolicy"
+  description = "Allow Jenkins to describe the TaskForge EKS cluster"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "DescribeTaskForgeCluster"
+        Effect   = "Allow"
+        Action   = ["eks:DescribeCluster"]
+        Resource = aws_eks_cluster.taskforge.arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_user_policy_attachment" "jenkins_eks_describe" {
+  user       = aws_iam_user.jenkins_ecr.name
+  policy_arn = aws_iam_policy.jenkins_eks_describe.arn
+}
+
