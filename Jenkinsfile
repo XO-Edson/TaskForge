@@ -285,6 +285,73 @@ pipeline {
             }
         }
 
+
+        stage('Deploy to EKS') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'aws-ecr-credentials',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
+                ]) {
+                    sh '''
+                        set -eu
+
+                        AWS_REGION="eu-central-1"
+                        AWS_DEFAULT_REGION="$AWS_REGION"
+                        AWS_ACCOUNT_ID="173291122749"
+                        ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+                        CLUSTER_NAME="taskforge"
+
+                        COMMIT_SHA=$(git rev-parse --short=12 HEAD)
+                        REMOTE_TAG="${COMMIT_SHA}-${BUILD_NUMBER}"
+
+                        FRONTEND_IMAGE="${ECR_REGISTRY}/taskforge-frontend:${REMOTE_TAG}"
+                        BACKEND_IMAGE="${ECR_REGISTRY}/taskforge-backend:${REMOTE_TAG}"
+
+                        export AWS_DEFAULT_REGION
+
+                        echo "=== Configure access to EKS ==="
+                        aws eks update-kubeconfig \
+                            --name "$CLUSTER_NAME" \
+                            --region "$AWS_REGION"
+
+                        echo "=== Verify Kubernetes access ==="
+                        kubectl get deployments -n default
+
+                        echo "=== Deploy frontend image ==="
+                        kubectl set image deployment/frontend \
+                            frontend="$FRONTEND_IMAGE" \
+                            -n default
+
+                        echo "=== Deploy backend image ==="
+                        kubectl set image deployment/backend \
+                            backend="$BACKEND_IMAGE" \
+                            -n default
+
+                        echo "=== Wait for frontend rollout ==="
+                        kubectl rollout status deployment/frontend \
+                            -n default \
+                            --timeout=180s
+
+                        echo "=== Wait for backend rollout ==="
+                        kubectl rollout status deployment/backend \
+                            -n default \
+                            --timeout=180s
+
+                        echo "=== Verify deployed images ==="
+                        kubectl get deployments frontend backend \
+                            -n default \
+                            -o wide
+
+                        echo "TaskForge successfully deployed to EKS."
+                    '''
+                }
+            }
+        }
+
+
     }
 
     post {
