@@ -22,13 +22,24 @@ spec:
 
           ports:
             - containerPort: 4000
-
+          
           readinessProbe:
-           httpGet:
-            path: /api/health
-            port: 4000
-           initialDelaySeconds: 5
-           periodSeconds: 10
+            httpGet:
+              path: /api/health
+              port: 4000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /api/live
+              port: 4000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
         
           env:
             - name: PORT

@@ -18,6 +18,10 @@ pool.on("error", (err) => {
   console.error("Unexpected PostgreSQL pool error:", err);
 });
 
+app.get("/api/live", (_req, res) => {
+  res.status(200).json({ status: "alive" });
+});
+
 app.get("/api/health", async (_req, res) => {
   try {
     await pool.query("SELECT 1");
