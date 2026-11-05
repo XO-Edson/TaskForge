@@ -366,23 +366,30 @@ pipeline {
 
                         export AWS_DEFAULT_REGION="eu-central-1"
 
-                        echo "=== Configure EKS access ==="
                         aws eks update-kubeconfig \
                             --name taskforge \
                             --region eu-central-1
 
                         SMOKE_POD="taskforge-smoke-${BUILD_NUMBER}"
 
-                        echo "=== Test frontend and backend ==="
+                        cleanup() {
+                            kubectl delete pod "$SMOKE_POD" \
+                                --namespace default \
+                                --ignore-not-found=true
+                        }
+
+                        trap cleanup EXIT
+
+                        echo "=== Starting smoke-test pod ==="
 
                         kubectl run "$SMOKE_POD" \
                             --namespace default \
                             --image=curlimages/curl:8.12.1 \
                             --restart=Never \
-                            --rm -i \
-                            --quiet \
+                            --attach=false \
                             --command -- sh -ec '
                                 echo "Checking frontend..."
+
                                 curl --fail --silent --show-error \
                                     --retry 10 \
                                     --retry-connrefused \
@@ -394,6 +401,7 @@ pipeline {
                                 echo "Frontend HTTP check passed."
 
                                 echo "Checking backend and database..."
+
                                 response=$(curl --fail --silent --show-error \
                                     --max-time 10 \
                                     http://backend:4000/api/health)
@@ -406,11 +414,26 @@ pipeline {
                                 echo "Backend and database checks passed."
                             '
 
-                        echo "Smoke tests passed."
+                        echo "=== Waiting for smoke tests ==="
+
+                        if kubectl wait \
+                            --for=jsonpath='{.status.phase}'=Succeeded \
+                            "pod/$SMOKE_POD" \
+                            --namespace default \
+                            --timeout=120s; then
+
+                            kubectl logs "$SMOKE_POD" --namespace default
+                            echo "Smoke tests passed."
+
+                        else
+                            echo "Smoke tests failed. Container logs:"
+                            kubectl logs "$SMOKE_POD" --namespace default || true
+                            exit 1
+                        fi
                     '''
                 }
             }
-        }
+    }
 
     }
 
