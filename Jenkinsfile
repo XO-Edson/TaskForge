@@ -352,7 +352,7 @@ pipeline {
         }
 
         
-                
+        
         stage('Smoke Test Deployment') {
             steps {
                 withCredentials([
@@ -371,87 +371,47 @@ pipeline {
                             --name taskforge \
                             --region eu-central-1
 
-                        SMOKE_POD="taskforge-smoke-${BUILD_NUMBER}"
+                        echo "=== Running deployment smoke tests ==="
 
-                        cleanup() {
-                            kubectl delete pod "$SMOKE_POD" \
-                                --namespace default \
-                                --ignore-not-found=true
-                        }
-
-                        trap cleanup EXIT
-
-                        echo "=== Starting smoke-test pod ==="
-
-                        kubectl run "$SMOKE_POD" \
+                        kubectl run "taskforge-smoke-${BUILD_NUMBER}" \
                             --namespace default \
                             --image=curlimages/curl:8.12.1 \
                             --restart=Never \
-                            --attach=false \
+                            --rm \
+                            --attach \
+                            --quiet \
                             --command -- sh -c '
-                                echo "Checking frontend..."
+                                set -e
 
-                                if ! curl --fail --silent --show-error \
+                                echo "Checking frontend..."
+                                curl --fail --silent --show-error \
                                     --retry 10 \
                                     --retry-connrefused \
                                     --retry-delay 3 \
                                     --max-time 5 \
-                                    http://frontend/ -o /dev/null; then
-                                    echo "Frontend check FAILED."
-                                    exit 1
-                                fi
+                                    http://frontend/ -o /dev/null
 
                                 echo "Frontend HTTP check passed."
 
                                 echo "Checking backend and database..."
-
                                 response=$(curl --fail --silent --show-error \
                                     --max-time 10 \
-                                    http://backend:4000/api/health) || {
-                                        echo "Backend request FAILED."
-                                        exit 1
-                                    }
+                                    http://backend:4000/api/health)
 
-                                echo "Raw backend response:"
-                                printf "<%s>\\n" "$response"
+                                echo "$response"
 
-                                echo "Checking status field..."
-                                if printf "%s" "$response" | grep -Eq "\"status\"[[:space:]]*:[[:space:]]*\"ok\""; then
-                                    echo "Status check PASSED."
-                                else
-                                    echo "Status check FAILED."
-                                    exit 1
-                                fi
-
-                                echo "Checking database field..."
-                                if printf "%s" "$response" | grep -Eq "\"database\"[[:space:]]*:[[:space:]]*\"connected\""; then
-                                    echo "Database check PASSED."
-                                else
-                                    echo "Database check FAILED."
-                                    exit 1
-                                fi
+                                echo "$response" | grep -q "\"status\":\"ok\""
+                                echo "$response" | grep -q "\"database\":\"connected\""
 
                                 echo "Backend and database checks passed."
                             '
 
-                        echo "=== Waiting for smoke-test pod ==="
-
-                        kubectl wait \
-                            --for=jsonpath='{.status.phase}'=Succeeded \
-                            pod/"$SMOKE_POD" \
-                            --namespace default \
-                            --timeout=120s || {
-                                echo "=== Smoke-test pod failed ==="
-                                kubectl get pod "$SMOKE_POD" -n default -o wide
-                                kubectl logs "$SMOKE_POD" -n default
-                                exit 1
-                            }
-
-                        echo "Smoke tests passed."
+                        echo "Smoke tests completed successfully."
                     '''
                 }
             }
         }
+
 
 
     }
