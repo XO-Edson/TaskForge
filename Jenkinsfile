@@ -408,8 +408,8 @@ pipeline {
 
                                 echo "$response"
 
-                                echo "$response" | grep -q "\"status\":\"ok\""
-                                echo "$response" | grep -q "\"database\":\"connected\""
+                                echo "$response" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'
+                                echo "$response" | grep -Eq '"database"[[:space:]]*:[[:space:]]*"connected"'
 
                                 echo "Backend and database checks passed."
                             '
