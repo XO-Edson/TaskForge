@@ -351,6 +351,66 @@ pipeline {
             }
         }
 
+        
+        stage('Smoke Test Deployment') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'aws-ecr-credentials',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
+                ]) {
+                    sh '''
+                        set -eu
+
+                        export AWS_DEFAULT_REGION="eu-central-1"
+
+                        echo "=== Configure EKS access ==="
+                        aws eks update-kubeconfig \
+                            --name taskforge \
+                            --region eu-central-1
+
+                        SMOKE_POD="taskforge-smoke-${BUILD_NUMBER}"
+
+                        echo "=== Test frontend and backend ==="
+
+                        kubectl run "$SMOKE_POD" \
+                            --namespace default \
+                            --image=curlimages/curl:8.12.1 \
+                            --restart=Never \
+                            --rm -i \
+                            --quiet \
+                            --command -- sh -ec '
+                                echo "Checking frontend..."
+                                curl --fail --silent --show-error \
+                                    --retry 10 \
+                                    --retry-connrefused \
+                                    --retry-delay 3 \
+                                    --max-time 5 \
+                                    http://frontend/ \
+                                    -o /dev/null
+
+                                echo "Frontend HTTP check passed."
+
+                                echo "Checking backend and database..."
+                                response=$(curl --fail --silent --show-error \
+                                    --max-time 10 \
+                                    http://backend:4000/api/health)
+
+                                echo "$response"
+
+                                echo "$response" | grep -q "\"status\":\"ok\""
+                                echo "$response" | grep -q "\"database\":\"connected\""
+
+                                echo "Backend and database checks passed."
+                            '
+
+                        echo "Smoke tests passed."
+                    '''
+                }
+            }
+        }
 
     }
 
