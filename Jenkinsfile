@@ -416,20 +416,30 @@ pipeline {
 
                         echo "=== Waiting for smoke tests ==="
 
-                        if kubectl wait \
+                        if ! kubectl wait \
                             --for=jsonpath='{.status.phase}'=Succeeded \
-                            "pod/$SMOKE_POD" \
+                            pod/"$SMOKE_POD" \
                             --namespace default \
                             --timeout=120s; then
 
-                            kubectl logs "$SMOKE_POD" --namespace default
-                            echo "Smoke tests passed."
+                            echo "=== Pod status ==="
+                            kubectl get pod "$SMOKE_POD" -n default -o wide
 
-                        else
-                            echo "Smoke tests failed. Container logs:"
-                            kubectl logs "$SMOKE_POD" --namespace default || true
+                            echo "=== Pod description ==="
+                            kubectl describe pod "$SMOKE_POD" -n default
+
+                            echo "=== Container logs ==="
+                            kubectl logs "$SMOKE_POD" -n default
+
+                            echo "=== Container termination details ==="
+                            kubectl get pod "$SMOKE_POD" -n default \
+                                -o jsonpath='{.status.containerStatuses[*].state}'
+
                             exit 1
                         fi
+
+                        echo "Smoke tests passed."
+                        kubectl delete pod "$SMOKE_POD" -n default --ignore-not-found=true
                     '''
                 }
             }
