@@ -4,5 +4,5 @@ metadata:
   name: backend-config
 data:
   PORT: "4000"
-  DB_HOST: "postgres"
+  DB_HOST: "taskforge-postgres.clwgaaui2z9f.eu-central-1.rds.amazonaws.com"
   DB_PORT: "5432"

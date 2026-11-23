@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rds-client
+spec:
+  restartPolicy: Never
+  containers:
+    - name: postgres-client
+      image: postgres:16-alpine
+      command: ["sleep", "3600"]
+      env:
+        - name: PGHOST
+          value: "taskforge-postgres.clwgaaui2z9f.eu-central-1.rds.amazonaws.com"
+        - name: PGPORT
+          value: "5432"
+        - name: PGDATABASE
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_DB
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_USER
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD

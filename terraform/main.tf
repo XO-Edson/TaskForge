@@ -606,3 +606,22 @@ resource "aws_iam_user_policy_attachment" "jenkins_eks_describe" {
   policy_arn = aws_iam_policy.jenkins_eks_describe.arn
 }
 
+# Security Group for RDS PostgreSQL
+resource "aws_security_group" "rds" {
+  name        = "taskforge-rds-sg"
+  description = "Allow PostgreSQL access from within TaskForge VPC"
+  vpc_id      = aws_vpc.taskforge_vpc.id
+
+  ingress {
+    description = "PostgreSQL from TaskForge VPC"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]
+  }
+
+  tags = {
+    Name = "taskforge-rds-sg"
+    App  = "TaskForge"
+  }
+}
