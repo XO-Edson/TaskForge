@@ -28,9 +28,17 @@ app.get("/api/live", (_req, res) => {
 app.get("/api/health", async (_req, res) => {
   try {
     await pool.query("SELECT 1");
-    res.json({ status: "ok", database: "connected", timestamp: new Date().toISOString() });
-  } catch {
-    res.status(503).json({ status: "degraded", database: "unavailable" });
+    res.json({
+      status: "ok",
+      database: "connected",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error("Health check database error:", err.message);
+    res.status(503).json({
+      status: "degraded",
+      database: "unavailable",
+    });
   }
 });
 
